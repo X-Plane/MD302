@@ -1,0 +1,15 @@
+{
+ "destroyed": [
+  "popup closed (command): window destroyed ",
+  "popup closed (command): window destroyed ",
+  "popup closed (command): window destroyed ",
+  "popup closed (command): window destroyed "
+ ],
+ "never_shown": [],
+ "errors": [],
+ "persisted": [],
+ "visible_paused": 1,
+ "visible_chase_view": 1,
+ "visible_back_in_cockpit": 1,
+ "fails": []
+}

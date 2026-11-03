@@ -1,0 +1,18 @@
+{
+ "day": {
+  "files": [
+   "br_day_0",
+   "br_day_1",
+   "br_day_2"
+  ],
+  "sun_pitch": 35.928352
+ },
+ "night": {
+  "files": [
+   "br_night_0",
+   "br_night_1",
+   "br_night_2"
+  ],
+  "sun_pitch": -56.02603
+ }
+}

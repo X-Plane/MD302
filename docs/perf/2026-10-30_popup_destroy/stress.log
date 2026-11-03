@@ -1,0 +1,19 @@
+12:47:53 measure {"tag": "before_1", "t": "12:47:00", "closed_ms": {"mean": 10.51, "median": 10.43, "p90": 11.26, "n": 76}, "open_ms": {"mean": 11.08, "median": 10.82, "p90": 12.24, "n": 76}, "private_mb": 11768.8, "working_set_mb": 7916.0, "gpu_mb": 8536.0}
+12:47:53 idle 60 s (drift without toggling)
+12:49:46 measure {"tag": "before_2", "t": "12:48:53", "closed_ms": {"mean": 10.29, "median": 9.98, "p90": 10.95, "n": 75}, "open_ms": {"mean": 10.32, "median": 10.13, "p90": 10.94, "n": 76}, "private_mb": 11761.6, "working_set_mb": 7917.5, "gpu_mb": 8321.0}
+12:50:22 cycle 50 of 300 | popup_visible 0
+12:50:58 cycle 100 of 300 | popup_visible 0
+12:51:35 cycle 150 of 300 | popup_visible 0
+12:52:12 cycle 200 of 300 | popup_visible 0
+12:52:48 cycle 250 of 300 | popup_visible 0
+12:53:26 cycle 300 of 300 | popup_visible 0
+12:53:29 300 cycles in 220 s; destroyed lines 300, never shown 0, errors 0, persisted lines 0
+12:54:31 measure {"tag": "after", "t": "12:53:39", "closed_ms": {"mean": 10.91, "median": 10.91, "p90": 11.71, "n": 75}, "open_ms": {"mean": 10.81, "median": 10.66, "p90": 11.86, "n": 76}, "private_mb": 11847.7, "working_set_mb": 7991.4, "gpu_mb": 8809.0}
+12:54:31 idle 60 s
+12:56:24 measure {"tag": "after_2", "t": "12:55:31", "closed_ms": {"mean": 10.12, "median": 9.84, "p90": 10.66, "n": 76}, "open_ms": {"mean": 10.59, "median": 10.44, "p90": 11.18, "n": 76}, "private_mb": 11894.6, "working_set_mb": 8038.1, "gpu_mb": 8749.0}
+ok   popup closed at the end
+ok   every sampled toggle opened it (0 missed)
+ok   Log.txt: 300 'window destroyed' lines for 300 cycles
+ok   Log.txt: no 'never shown'
+ok   Log.txt: no errors (0)
+FAILURES: none

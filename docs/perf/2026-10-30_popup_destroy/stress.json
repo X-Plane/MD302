@@ -1,0 +1,90 @@
+{
+ "cycles": 300,
+ "seconds": 219.9,
+ "measures": [
+  {
+   "tag": "before_1",
+   "t": "12:47:00",
+   "closed_ms": {
+    "mean": 10.51,
+    "median": 10.43,
+    "p90": 11.26,
+    "n": 76
+   },
+   "open_ms": {
+    "mean": 11.08,
+    "median": 10.82,
+    "p90": 12.24,
+    "n": 76
+   },
+   "private_mb": 11768.8,
+   "working_set_mb": 7916.0,
+   "gpu_mb": 8536.0
+  },
+  {
+   "tag": "before_2",
+   "t": "12:48:53",
+   "closed_ms": {
+    "mean": 10.29,
+    "median": 9.98,
+    "p90": 10.95,
+    "n": 75
+   },
+   "open_ms": {
+    "mean": 10.32,
+    "median": 10.13,
+    "p90": 10.94,
+    "n": 76
+   },
+   "private_mb": 11761.6,
+   "working_set_mb": 7917.5,
+   "gpu_mb": 8321.0
+  },
+  {
+   "tag": "after",
+   "t": "12:53:39",
+   "closed_ms": {
+    "mean": 10.91,
+    "median": 10.91,
+    "p90": 11.71,
+    "n": 75
+   },
+   "open_ms": {
+    "mean": 10.81,
+    "median": 10.66,
+    "p90": 11.86,
+    "n": 76
+   },
+   "private_mb": 11847.7,
+   "working_set_mb": 7991.4,
+   "gpu_mb": 8809.0
+  },
+  {
+   "tag": "after_2",
+   "t": "12:55:31",
+   "closed_ms": {
+    "mean": 10.12,
+    "median": 9.84,
+    "p90": 10.66,
+    "n": 76
+   },
+   "open_ms": {
+    "mean": 10.59,
+    "median": 10.44,
+    "p90": 11.18,
+    "n": 76
+   },
+   "private_mb": 11894.6,
+   "working_set_mb": 8038.1,
+   "gpu_mb": 8749.0
+  }
+ ],
+ "destroyed_during_cycles": 300,
+ "destroy_reasons": [
+  "popup closed (command)"
+ ],
+ "never_shown": [],
+ "errors": [],
+ "persisted": [],
+ "fails": []
+}
