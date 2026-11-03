@@ -39,3 +39,10 @@ luac.out
 *.x86_64
 *.hex
 
+# MD302: the cockpit model is part of the instrument
+!3D/*.obj
+
+# MD302: files the plugin leaves next to config.ini while saving it
+config.ini.bak
+config.ini.tmp
+config.ini.broken

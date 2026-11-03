@@ -1,0 +1,3 @@
+# cockpit models are stored byte for byte (no line-ending conversion)
+*.obj -text
+*.png binary
