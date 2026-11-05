@@ -236,7 +236,7 @@ local LCD = load_module("md302_lcd")
 local Fail = load_module("md302_fail")
 -- the popup bezel's geometry (generated with Textures/popup_bezel.png); the
 -- same numbers if the file is missing
-local BZ_DEFAULT = { bezel_w = 1400, bezel_h = 608, screen_x = 129, screen_y = 118, gap = 142,
+local BZ_DEFAULT = { bezel_w = 1400, bezel_h = 608, screen_x = 129, screen_y = 118, gap = 142, lcd_r = 13.8,
     knob_x = 700.0, knob_y = 94.7, knob_r = 76.4, knob_sprite = 168, shadow_sprite = 200 }
 local okb, BZ = pcall(load_module, "md302_bezel")
 if okb and type(BZ) == "table" then
@@ -962,6 +962,25 @@ local function popup_screen_offset()
     return bezel_point(BZ.screen_x, BZ.screen_y + LCD_H)
 end
 
+-- an LCD's corners outside its rounded edge (the 3D screens' radius) black:
+-- the bezel shows there, as it does in the cockpit
+local CORNER_STEPS = 8
+local function round_corners(x0, y0, x1, y1)
+    local r = BZ.lcd_r
+    if r <= 0 then return end
+    for _, c in ipairs({ { x0, y0, 1, 1 }, { x1, y0, -1, 1 }, { x1, y1, -1, -1 }, { x0, y1, 1, -1 } }) do
+        local px, py, dx, dy = c[1], c[2], c[3], c[4]
+        local cx, cy = px + dx * r, py + dy * r
+        local ax, ay = px, cy
+        for i = 1, CORNER_STEPS do
+            local a = i * math.pi / 2 / CORNER_STEPS
+            local bx, by = cx - dx * r * math.cos(a), cy - dy * r * math.sin(a)
+            G.poly(G.C.black, { px, py, ax, ay, bx, by })
+            ax, ay = bx, by
+        end
+    end
+end
+
 local function draw_screen(ref)
     G.reset_frame()
     drawing = ref
@@ -981,12 +1000,16 @@ local function draw_screen(ref)
         G.rect(LCD_W + POPUP_GAP, 0, 2 * LCD_W + POPUP_GAP, LCD_H, G.C.black)
         draw_at(left_role, 0, 0, LCD_W, LCD_H, 0, 0)
         draw_at(right_role, LCD_W + POPUP_GAP, 0, LCD_W, LCD_H, 0, 0)
+        round_corners(0, 0, LCD_W, LCD_H)
+        round_corners(LCD_W + POPUP_GAP, 0, 2 * LCD_W + POPUP_GAP, LCD_H)
     else
         -- a vertical unit's popup: both LCDs upright, the attitude on top
         G.rect(0, 0, LCD_H, LCD_W, G.C.black)
         G.rect(0, LCD_W + POPUP_GAP, LCD_H, 2 * LCD_W + POPUP_GAP, G.C.black)
         draw_at("att", 0, LCD_W + POPUP_GAP, LCD_H, LCD_W, 0, -q)
         draw_at("air", 0, 0, LCD_H, LCD_W, 0, -q)
+        round_corners(0, LCD_W + POPUP_GAP, LCD_H, 2 * LCD_W + POPUP_GAP)
+        round_corners(0, 0, LCD_H, LCD_W)
     end
 end
 
