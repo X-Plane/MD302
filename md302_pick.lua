@@ -16,6 +16,12 @@ therefore ignored by X-Plane, and this module emulates them:
     can already pick natively (the slot IS the cockpit object, or the host
     cockpit object already carries the MD302 click regions), so nothing ever
     fires twice.
+  * The camera is the one of the frame on screen, read in the windows' draw
+    callback: the head X-Plane draws from moves with the G-loaded camera
+    (and head tracking), which the pilot's head datarefs leave out; the
+    attitude and the zoom read in the flight loop are a frame off the screen.
+    Without a fresh reading (no window shown): the pilot's head and the
+    flight-loop attitude and projection.
   * Every frame the manipulator groups (the knob) are projected with
     the 3D-cockpit camera; one small, invisible, undecorated window is laid
     tightly over each group of each slot (clipped to the screen; any size, so
@@ -280,7 +286,22 @@ end
 local cam = { ok = false }
 local proj_m = {}
 
+-- the camera of the last frame drawn (CG frame), read in a window's draw
+-- callback: pos, axes, t (XPLMGetElapsedTime, s)
+local drawn = { t = nil }
+-- older than this (no window shown for a while): the head and the flight loop
+local DRAWN_MAX_AGE_S = 0.25
+-- the drawn camera this far from the pilot's head is not the cockpit's (a
+-- G-load or head-tracking move is centimetres)
+local DRAWN_MAX_OFF_M = 0.5
+-- older than DRAWN_MAX_AGE_S but younger than this: the head plus the last
+-- drawn offset from it (a window hidden under the mouse stops the readings,
+-- and a camera jump back to the head would move its outline)
+local DRAWN_HOLD_S = 2
+
 local function num(x) return tonumber(tostring(x)) or 0 end
+
+local function now() return XPLMGetElapsedTime and num(XPLMGetElapsedTime()) or nil end
 
 local function bounds()
     local b = XPLMGetScreenBoundsGlobal()
@@ -303,6 +324,20 @@ end
 -- windowed / high-DPI layout, where the mouse ray would miss the knob)
 local view_fits = nil
 
+-- The projection X-Plane really used for the last 3D frame. It includes the
+-- mouse-wheel zoom, which field_of_view_deg does not (zoomed 72.5 deg showed
+-- as 38 deg). OpenGL column-major: m[0] = 1/tan_h, m[5] = 1/tan_v, m[8]/m[9]
+-- = frustum shift. Into c; false if not readable.
+local function read_projection(c)
+    local m = proj_m
+    local ok = dr.proj and XPLMGetDatavf(dr.proj, m, 0, 16) == 16
+        and m[1] and m[6] and m[1] > 0.05 and m[6] > 0.05 and m[11] and m[11] < 0
+    if not ok then return false end
+    c.tan_h, c.tan_v = 1 / m[1], 1 / m[6]
+    c.shift_x, c.shift_y = -m[9], -m[10]
+    return true
+end
+
 local function update_camera()
     cam.ok = false
     if XPLMGetDatai(dr.view_type) ~= 1026 then return end          -- 3D cockpit only
@@ -319,25 +354,28 @@ local function update_camera()
     if not fits then return end
     local aspect = (ww > 0 and wh > 0) and (ww / wh) or ((r - l) / (t - b))
     cam.l, cam.t, cam.r, cam.b = l, t, r, b
-    -- The projection X-Plane really used for the last 3D frame. It includes the
-    -- mouse-wheel zoom, which field_of_view_deg does not (zoomed 72.5 deg showed
-    -- as 38 deg). OpenGL column-major: m[0] = 1/tan_h, m[5] = 1/tan_v, m[8]/m[9]
-    -- = frustum shift.
-    local m = proj_m
-    local ok = dr.proj and XPLMGetDatavf(dr.proj, m, 0, 16) == 16
-        and m[1] and m[6] and m[1] > 0.05 and m[6] > 0.05 and m[11] and m[11] < 0
-    if ok then
-        cam.tan_h, cam.tan_v = 1 / m[1], 1 / m[6]
-        cam.shift_x, cam.shift_y = -m[9], -m[10]
-    else
+    -- no projection matrix: the field of view
+    if not read_projection(cam) then
         cam.tan_h = tan(rad(XPLMGetDataf(dr.fov) * 0.5))
         cam.tan_v = cam.tan_h / aspect
         cam.shift_x = XPLMGetDataf(dr.fov_hr) * 2      -- frustum shift, 1 = one screen width
         cam.shift_y = XPLMGetDataf(dr.fov_vr) * 2
     end
-    -- position: the pilot's head in the aircraft frame (exact; the world-space
-    -- view_x/y/z floats lose millimetres far from the local origin)
+    local tn = now()
+    if drawn.t and tn and tn >= drawn.t and tn - drawn.t <= DRAWN_MAX_AGE_S then
+        cam.pos, cam.ax_r, cam.ax_u, cam.ax_b = drawn.pos, drawn.ax_r, drawn.ax_u, drawn.ax_b
+        if drawn.tan_h then
+            cam.tan_h, cam.tan_v, cam.shift_x, cam.shift_y = drawn.tan_h, drawn.tan_v, drawn.shift_x, drawn.shift_y
+        end
+        cam.ok = true
+        return
+    end
+    -- position: the pilot's head in the aircraft frame (without the G-loaded
+    -- camera's movement), plus the last drawn offset for a while
     cam.pos = { XPLMGetDataf(dr.hx), XPLMGetDataf(dr.hy), XPLMGetDataf(dr.hz) }
+    if drawn.off and tn and tn >= drawn.t and tn - drawn.t <= DRAWN_HOLD_S then
+        cam.pos = add(cam.pos, drawn.off)
+    end
     -- orientation: the camera X-Plane really rendered (world view angles, which
     -- include the aircraft attitude), brought into the aircraft frame. The head
     -- angles alone were off by ~25 px at large head yaw with the aircraft pitched.
@@ -346,6 +384,50 @@ local function update_camera()
     local function axis(v) return to_child(to_parent(v, vh, vp, vr), ah, ap, ar) end
     cam.ax_r, cam.ax_u, cam.ax_b = axis({ 1, 0, 0 }), axis({ 0, 1, 0 }), axis({ 0, 0, 1 })
     cam.ok = true
+end
+
+-- In a window's draw callback: the camera of the frame on screen. View angles
+-- and attitude of the same frame give the axes, the projection of the same
+-- frame goes with them (a zoom in progress). Position: view_x/y/z - local_x/y/z
+-- turned into the aircraft frame (the head moved by the G-loaded camera, head
+-- tracking, a view change on its way); the pilot's head (exact) when that is
+-- within the float step of view_x/y/z (millimetres far from the local origin)
+-- or not the cockpit camera.
+local function capture_camera()
+    if XPLMGetDatai(dr.view_type) ~= 1026 then return end
+    local t = now()
+    if not t then return end
+    local vh, vp, vr = XPLMGetDataf(dr.vhdg), XPLMGetDataf(dr.vpitch), XPLMGetDataf(dr.vroll)
+    local ah, ap, ar = XPLMGetDataf(dr.apsi), XPLMGetDataf(dr.athe), XPLMGetDataf(dr.aphi)
+    local function axis(v) return to_child(to_parent(v, vh, vp, vr), ah, ap, ar) end
+    local pos = { XPLMGetDataf(dr.hx), XPLMGetDataf(dr.hy), XPLMGetDataf(dr.hz) }
+    if dr.vx and dr.vy and dr.vz and dr.lx and dr.ly and dr.lz then
+        local vx, vy, vz = XPLMGetDataf(dr.vx), XPLMGetDataf(dr.vy), XPLMGetDataf(dr.vz)
+        -- local_x/y/z as doubles (they are float too: the float drops millimetres)
+        local getd = XPLMGetDatad or XPLMGetDataf
+        local p = to_child({ vx - getd(dr.lx), vy - getd(dr.ly), vz - getd(dr.lz) }, ah, ap, ar)
+        local off = sub(p, pos)
+        local d = math.sqrt(dot(off, off))
+        local step = math.max(math.abs(vx), math.abs(vy), math.abs(vz)) / 8388608      -- 2^-23
+        if d > 2 * step and d <= DRAWN_MAX_OFF_M then
+            pos = p
+            if not drawn.moved then
+                drawn.moved = true
+                log(string.format("pick: camera from the drawn view (%.0f mm from the pilot's head)", d * 1000))
+            end
+        end
+    end
+    drawn.off = sub(pos, { XPLMGetDataf(dr.hx), XPLMGetDataf(dr.hy), XPLMGetDataf(dr.hz) })
+    drawn.pos, drawn.t = pos, t
+    drawn.ax_r, drawn.ax_u, drawn.ax_b = axis({ 1, 0, 0 }), axis({ 0, 1, 0 }), axis({ 0, 0, 1 })
+    if not read_projection(drawn) then drawn.tan_h = nil end
+    -- the clicks that come before the next flight loop
+    if cam.ok then
+        cam.pos, cam.ax_r, cam.ax_u, cam.ax_b = drawn.pos, drawn.ax_r, drawn.ax_u, drawn.ax_b
+        if drawn.tan_h then
+            cam.tan_h, cam.tan_v, cam.shift_x, cam.shift_y = drawn.tan_h, drawn.tan_v, drawn.shift_x, drawn.shift_y
+        end
+    end
 end
 
 -- CG-frame point x, y, z -> global boxels, or nil if behind the camera; in
@@ -480,7 +562,13 @@ local function end_active()
 end
 
 local function on_draw(win, g)
-    -- invisible: the window only catches the mouse over the MD302 knob
+    -- invisible: the window only catches the mouse over the MD302 knob, and
+    -- reads the camera of the frame on screen
+    local ok, err = pcall(capture_camera)
+    if not ok and not drawn.err then
+        drawn.err = true
+        log("pick: camera capture error " .. tostring(err))
+    end
 end
 
 local function on_click(win, x, y, mouse, g)
@@ -734,6 +822,13 @@ function P.enable()
     dr.hx = find("sim/graphics/view/pilots_head_x")
     dr.hy = find("sim/graphics/view/pilots_head_y")
     dr.hz = find("sim/graphics/view/pilots_head_z")
+    -- the drawn camera's position (any missing: the pilot's head)
+    dr.vx = XPLMFindDataRef("sim/graphics/view/view_x")
+    dr.vy = XPLMFindDataRef("sim/graphics/view/view_y")
+    dr.vz = XPLMFindDataRef("sim/graphics/view/view_z")
+    dr.lx = XPLMFindDataRef("sim/flightmodel/position/local_x")
+    dr.ly = XPLMFindDataRef("sim/flightmodel/position/local_y")
+    dr.lz = XPLMFindDataRef("sim/flightmodel/position/local_z")
     -- every one the camera reads each frame (vr and the projection matrix
     -- may be missing: then not in VR / the field of view instead); another
     -- X-Plane version without one: no plugin picking rather than an error a frame
