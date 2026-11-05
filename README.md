@@ -33,8 +33,11 @@ Version: 2026-11-03 (manual 9017782 rev Q; the S/W VERSION the unit shows is "X-
 3. Set the unit's power source in `config.ini` `[Power]`: `power_bus` = the
    `sim/cockpit2/electrical/bus_volts` index that feeds it.
 4. Check the air data source, `config.ini` `[Sources] air_data`: the default `stby` is X-Plane's standby
-   pitot / static system, as the real unit's own ports. If your aircraft's standby system reads 0 in flight
-   (some do), set `pilot` or `copilot`.
+   pitot / static system, as the real unit's own ports. An aircraft plugin that takes over the indicated
+   airspeed (`sim/operation/override/override_ias`) may write the pilot's alone, as `c172_IAS.lua` of the
+   Cessna 172 that comes with X-Plane does: the standby airspeed then stays at 0, and the unit reads
+   X-Plane's calibrated airspeed of the same side instead. If the standby airspeed still reads 0 in flight,
+   set `pilot` or `copilot`.
 5. Vertical installation: turn the object a quarter in Plane Maker (roll -90: knob on the right, +90: knob
    on the left). The unit reads that from the `.acf` and turns its pictures to match; a small tilt or roll of
    the object is what PANEL TILT / PANEL ROLL take out (`auto` in `config.ini`).

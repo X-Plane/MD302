@@ -579,13 +579,17 @@ end
 -- the quarter the .acf mounting asks for (nil: not known)
 function M.mount_q() return mount and mount.q end
 
+-- indicated airspeed, altitude, baro setting, calibrated airspeed (read_sim)
 local AIR = {
     stby = { "sim/cockpit2/gauges/indicators/airspeed_kts_stby", "sim/cockpit2/gauges/indicators/altitude_ft_stby",
-        "sim/cockpit2/gauges/actuators/barometer_setting_in_hg_stby" },
+        "sim/cockpit2/gauges/actuators/barometer_setting_in_hg_stby",
+        "sim/cockpit2/gauges/indicators/calibrated_airspeed_kts_stby" },
     pilot = { "sim/cockpit2/gauges/indicators/airspeed_kts_pilot", "sim/cockpit2/gauges/indicators/altitude_ft_pilot",
-        "sim/cockpit2/gauges/actuators/barometer_setting_in_hg_pilot" },
+        "sim/cockpit2/gauges/actuators/barometer_setting_in_hg_pilot",
+        "sim/cockpit2/gauges/indicators/calibrated_airspeed_kts_pilot" },
     copilot = { "sim/cockpit2/gauges/indicators/airspeed_kts_copilot", "sim/cockpit2/gauges/indicators/altitude_ft_copilot",
-        "sim/cockpit2/gauges/actuators/barometer_setting_in_hg_copilot" },
+        "sim/cockpit2/gauges/actuators/barometer_setting_in_hg_copilot",
+        "sim/cockpit2/gauges/indicators/calibrated_airspeed_kts_copilot" },
 }
 local ATT = {
     own = { "sim/flightmodel/position/theta", "sim/flightmodel/position/phi" },
@@ -597,6 +601,7 @@ local ATT = {
 local function find_datarefs()
     local a, t = AIR[config.air_data], ATT[config.attitude]
     dr.ias, dr.alt, dr.baro = U.find(a[1]), U.find(a[2]), U.find(a[3])
+    dr.ias_cal, dr.ias_override = U.find(a[4]), U.find("sim/operation/override/override_ias")
     dr.pitch, dr.roll = U.find(t[1]), U.find(t[2])
     -- X-Plane's own failures (Flight > Failures) of the instruments the unit
     -- reads give the same red X as laminar/md302/fail_* (6 = inoperative). The
@@ -668,7 +673,13 @@ local function read_sim()
     D.hdg_raw = dr.hdg and (fin(U.getf(dr.hdg, 0), 0) % 360) or nil
     D.oat_c = fin(U.getf(dr.oat, 15), 15)
     D.slip_deg = fin(U.getf(dr.slip, 0), 0)
-    D.ias_kt = math.max(0, fin(U.getf(dr.ias, 0), 0))
+    -- an aircraft plugin that takes over the indicated airspeed (override_ias)
+    -- may write the pilot's alone (c172_IAS.lua of X-Plane's Cessna 172):
+    -- X-Plane no longer fills the other sides, they stay at 0, and the
+    -- calibrated airspeed of the side read (its own pitot / static) stands in
+    local ias = fin(U.getf(dr.ias, 0), 0)
+    if ias == 0 and U.geti(dr.ias_override, 0) ~= 0 then ias = fin(U.getf(dr.ias_cal, 0), 0) end
+    D.ias_kt = math.max(0, ias)
     D.alt_ft = fin(U.getf(dr.alt, 0), 0)
     D.baro_inhg = fin(U.getf(dr.baro, 29.92), 29.92)
     D.groundspeed_kt = fin(U.getf(dr.gs, 0), 0) * 1.943844
