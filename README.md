@@ -75,9 +75,11 @@ it is placed.
   on the battery, OFF (lit first) turns it off, else it turns off at 0; airspeed again stops the countdown.
   With AUTO-OFF off it stays on the battery until POWER OFF.
 - **Brightness** (4.3.3): push the knob: a green bar with a sun along the left edge; turn to change. As rev Q
-  says, it cannot go below the lowest point of the DIMMING CURVE: with the photocell at night the screen is
-  already there and the bar cannot dim it further; in daylight it can dim a long way. The screen follows
-  X-Plane's ambient light; the manual's default curve (10 .. 100 %) gives the look tuned for X-Plane.
+  says, it cannot go below the lowest point of the DIMMING CURVE. At night the photocell has turned the
+  backlight part of the way down (in a test at 21:00 local time, about 42 % with the default curve), so
+  fewer steps are left to dim, but the bar can still dim it further or turn it up; only in full darkness is
+  it at the lowest point already. In daylight it can dim a long way. The screen follows X-Plane's ambient
+  light; the manual's default curve (10 .. 100 %) gives the look tuned for X-Plane.
 - **Airspeed** below AIRSPEED MINIMUM (20 / 30 / 40 kt, default 30) reads 0, as on the real unit.
 - **Configuration Mode** (4.5): hold the knob while aircraft power is applied (4.1). After about 6 s
   "CONTINUE HOLDING TO ENTER CONFIG MODE" appears, after about 9 s the introduction screen; let go for the
@@ -200,8 +202,8 @@ The picture is 500 x 374 framebuffer pixels per LCD (1.56 per LCD pixel), so a s
 without moire; the grain stands for it. The defaults are set for the 3D cockpit: X-Plane boosts panel light in
 daylight (about 12x), so the band's small values read there like photos of the unit; the 2D popup is not
 boosted and looks nearly black. The surface (the screen islands of `3D/MD302_ALB.png` / `MD302_NRM.png`) is
-the matte anti-glare film: a rough, blurred reflection instead of a mirror, with fine dust, a few light
-scratches and smudges kept faint, so the screen's own character reads before the dirt.
+glass, as glossy as the screen of X-Plane's Garmin G5, with faint smudges on it, kept light so the
+screen's own character reads before the smudges.
 
 ## Commands and datarefs
 

@@ -18,8 +18,18 @@ therefore ignored by X-Plane, and this module emulates them:
     fires twice.
   * Every frame the manipulator groups (the knob) are projected with
     the 3D-cockpit camera; one small, invisible, undecorated window is laid
-    tightly over each group of each slot. Nothing of the host aircraft outside
+    tightly over each group of each slot (clipped to the screen; any size, so
+    a zoomed-in view keeps its clicks). Nothing of the host aircraft outside
     those rectangles is ever covered.
+  * Seen at an angle the MD302 is a slanted shape, and an upright rectangle
+    reaches over its neighbours. So every frame: with the mouse over a
+    group's outline (convex hull of its click regions) its window comes to
+    the front once; with the mouse inside the rectangle but off the outline
+    the window steps aside, and the click goes to whatever is below (another
+    window, or the host). Misses inside the outline stay swallowed. A window
+    picks the nearest click region of the whole MD302, since the windows of
+    its own groups overlap. No click pass-through (the SDK warns it breaks
+    mouse tracking).
   * Inside a window, the mouse ray is intersected with the manipulator
     triangles: a hit fires the command (Begin on mouse down, End on mouse up,
     like X-Plane's own manipulators) and sets the cursor. Mouse wheel turns
@@ -270,13 +280,22 @@ end
 local cam = { ok = false }
 local proj_m = {}
 
+local function num(x) return tonumber(tostring(x)) or 0 end
+
 local function bounds()
     local b = XPLMGetScreenBoundsGlobal()
-    local function num(x) return tonumber(tostring(x)) or 0 end
     if type(b) == "table" then
         return num(b.outLeft or b[1]), num(b.outTop or b[2]), num(b.outRight or b[3]), num(b.outBottom or b[4])
     end
     return 0, 0, 0, 0
+end
+
+-- mouse in global boxels, or nil
+local function mouse_xy()
+    if not XPLMGetMouseLocationGlobal then return nil end
+    local m = XPLMGetMouseLocationGlobal()
+    if type(m) ~= "table" then return nil end
+    return num(m.outX or m[1]), num(m.outY or m[2])
 end
 
 -- the screen bounds taken for the 3D view fit X-Plane's window: false when
@@ -364,11 +383,42 @@ end
 
 local function to_cg(s, v) return add(to_parent(v, s.psi, s.the, s.phi), s.base) end
 
+-- 2D convex hull (monotone chain), counter-clockwise, of points { x, y }
+local function hull2d(pts)
+    table.sort(pts, function(a, b) return a[1] < b[1] or (a[1] == b[1] and a[2] < b[2]) end)
+    if #pts < 3 then return pts end
+    local function turn(o, a, b) return (a[1] - o[1]) * (b[2] - o[2]) - (a[2] - o[2]) * (b[1] - o[1]) end
+    local h = {}
+    for i = 1, #pts do
+        while #h >= 2 and turn(h[#h - 1], h[#h], pts[i]) <= 0 do h[#h] = nil end
+        h[#h + 1] = pts[i]
+    end
+    local lower = #h + 1
+    for i = #pts - 1, 1, -1 do
+        while #h >= lower and turn(h[#h - 1], h[#h], pts[i]) <= 0 do h[#h] = nil end
+        h[#h + 1] = pts[i]
+    end
+    h[#h] = nil
+    return h
+end
+
+-- inside a counter-clockwise convex polygon, or less than pad boxels outside
+-- it (the window is back before a quick click right at the edge)
+local function in_hull(h, x, y, pad)
+    if #h < 3 then return false end
+    for i = 1, #h do
+        local a, b = h[i], h[i % #h + 1]
+        local ex, ey = b[1] - a[1], b[2] - a[2]
+        if ex * (y - a[2]) - ey * (x - a[1]) < -pad * math.sqrt(ex * ex + ey * ey) then return false end
+    end
+    return true
+end
+
 -----------------------------------------------------------------------------
 -- Hit test
 -----------------------------------------------------------------------------
 
--- nearest manipulator hit for a group (one slot's): batch, slot
+-- nearest manipulator hit for a group (one slot's): batch, slot, distance
 local function hit_group(g, x, y)
     if not cam.ok then return nil end
     local s = g.slot
@@ -384,7 +434,21 @@ local function hit_group(g, x, y)
             if dist and (not best or dist < best) then best, bb = dist, b end
         end
     end
-    return bb, bb and s
+    return bb, bb and s, best
+end
+
+-- nearest hit over every group of g's slot: batch, slot, its group. The windows
+-- of one MD302's groups overlap (the knob cap's box over the ring; at an angle
+-- a screen's over the knob in front of it), so a window asks the whole unit
+local function hit_unit(g, x, y)
+    local bb, bs, bd, bg = nil, nil, nil, nil
+    for _, o in ipairs(groups) do
+        if o.slot == g.slot then
+            local b, s, d = hit_group(o, x, y)
+            if b and (not bd or d < bd) then bb, bs, bd, bg = b, s, d, o end
+        end
+    end
+    return bb, bs, bg
 end
 
 -- which command of a "pair" batch: screen side of the batch centre
@@ -423,7 +487,7 @@ local function on_click(win, x, y, mouse, g)
     local ok, ret = pcall(function()
         if mouse == XPLMMouseStatus.xplm_MouseDown then
             end_active()
-            local b, s = hit_group(g, x, y)
+            local b, s = hit_unit(g, x, y)
             if not b then return config.pick_pass_misses ~= 0 and 0 or 1 end
             local i = (b.kind == "pair") and pair_index(b, s, x, y) or 1
             local c = b.cmds[i]
@@ -448,7 +512,7 @@ end
 
 local function on_cursor(win, x, y, g)
     local ok, ret = pcall(function()
-        local b, s = hit_group(g, x, y)
+        local b, s = hit_unit(g, x, y)
         if not b then
             U.cursor_note("3d_none", "-", XPLMCursorStatus.xplm_CursorDefault, x, y)
             return XPLMCursorStatus.xplm_CursorDefault
@@ -471,9 +535,9 @@ end
 
 local function on_wheel(win, x, y, wheel, clicks, g)
     local ok, ret = pcall(function()
-        local b = hit_group(g, x, y)
+        local b, _, bg = hit_unit(g, x, y)
         if not b then return false end
-        local w = wheel_batch(g, b)
+        local w = wheel_batch(bg, b)
         if w and wheel == 0 and clicks ~= 0 then
             local c = (clicks > 0) and w.cmds[1] or w.cmds[2]
             for _ = 1, math.min(math.abs(clicks), 10) do XPLMCommandOnce(c) end
@@ -607,30 +671,39 @@ function P.load(obj_path, acf_path)
         b.center = { sx / n, sy / n, sz / n }
         local g = by_id[b.group]
         if not g then
-            g = { batches = {}, verts = {}, screen = true }
+            g = { batches = {}, corners = {}, screen = true }
             by_id[b.group] = g
             base[#base + 1] = g
         end
         g.batches[#g.batches + 1] = b
-        -- the screens' click region (popup_show) may cover much of the view
-        -- close up; the knob's may not (md302_pick update)
+        -- without a mouse position (no outline test) the screens' click region
+        -- (popup_show) may cover much of the view close up; the knob's may not
+        -- (md302_pick update)
         g.screen = g.screen and (b.cmd_names[1] or ""):match("popup_show$") ~= nil
+        local lo, hi = { math.huge, math.huge, math.huge }, { -math.huge, -math.huge, -math.huge }
         for _, tri in ipairs(b.tris) do
-            for j = 1, 3 do g.verts[#g.verts + 1] = tri[j] end
+            for j = 1, 3 do
+                for k = 1, 3 do lo[k], hi[k] = math.min(lo[k], tri[j][k]), math.max(hi[k], tri[j][k]) end
+            end
+        end
+        -- the batch's box corners: the points of the window rect and the outline (hull)
+        for c = 0, (#b.tris > 0) and 7 or -1 do
+            g.corners[#g.corners + 1] = { (c % 2 == 0) and lo[1] or hi[1], (c % 4 < 2) and lo[2] or hi[2],
+                (c < 4) and lo[3] or hi[3] }
         end
     end
     -- one window per group and slot: two MD302s in one aircraft get a window
-    -- each, not one over both (and the panel between them). The vertices in
+    -- each, not one over both (and the panel between them). The box corners in
     -- the CG frame, flat x, y, z: the slots do not move
     for _, s in ipairs(slots) do
         if s.on then
             for _, bg in ipairs(base) do
                 local cg = {}
-                for _, v in ipairs(bg.verts) do
+                for _, v in ipairs(bg.corners) do
                     local p = to_cg(s, v)
                     cg[#cg + 1], cg[#cg + 2], cg[#cg + 3] = p[1], p[2], p[3]
                 end
-                groups[#groups + 1] = { batches = bg.batches, verts = bg.verts, screen = bg.screen, slot = s, cg = cg,
+                groups[#groups + 1] = { batches = bg.batches, screen = bg.screen, slot = s, cg = cg,
                     rect = { 0, 0, 0, 0 } }
             end
         end
@@ -684,7 +757,7 @@ function P.enable()
             decorateAsFloatingWindow = XPLMWindowDecoration.xplm_WindowDecorationNone,
             layer = XPLMWindowLayer.xplm_WindowLayerFlightOverlay,
         })
-        g.shown = false
+        g.shown, g.over = false, false
     end
     enabled = true
 end
@@ -707,10 +780,12 @@ function P.update(real_dt)
         end
     end
     update_camera()
+    local mx, my = mouse_xy()
     for _, g in ipairs(groups) do
         local l, t, r, b = nil, nil, nil, nil
+        local over = false      -- the mouse is over the group's outline
         if cam.ok and not active and slot_visible(g.slot) then
-            local cg = g.cg
+            local cg, pts = g.cg, {}
             for i = 1, #cg, 3 do
                 local x, y = project_xyz(cg[i], cg[i + 1], cg[i + 2])
                 if not x then l = nil; break end
@@ -718,16 +793,23 @@ function P.update(real_dt)
                 r = r and math.max(r, x) or x
                 b = b and math.min(b, y) or y
                 t = t and math.max(t, y) or y
+                pts[#pts + 1] = { x, y }
+            end
+            -- the outline only matters with the mouse inside the window
+            if l and mx and mx >= l - 2 and mx <= r + 2 and my >= b - 2 and my <= t + 2 then
+                over = in_hull(hull2d(pts), mx, my, 3)
             end
         end
         if active then
             -- keep the window still while a click is held
         elseif l and r > cam.l and l < cam.r and t > cam.b and b < cam.t
-            and (g.screen or (r - l) < (cam.r - cam.l) * 0.5) then
-            -- the knob's window no wider than half the screen (head right
-            -- up to it: it would take the clicks around it); the screens'
-            -- may fill the view close up (a click on the screen opens the
-            -- popup), held to the screen
+            and (g.screen or mx or (r - l) < (cam.r - cam.l) * 0.95) then
+            -- any size, clipped to the screen: a zoomed-in MD302 keeps its
+            -- clicks, and off the outline the window steps aside (below).
+            -- Without a mouse position (no outline test) the knob's window
+            -- is never over nearly the whole screen (it would take the
+            -- host's clicks); the screens' may fill the view close up (a
+            -- click on the screen opens the popup)
             l, b = math.floor(math.max(l - 1, cam.l)), math.floor(math.max(b - 1, cam.b))
             r, t = math.ceil(math.min(r + 1, cam.r)), math.ceil(math.min(t + 1, cam.t))
             g.rect = { l, t, r, b }
@@ -757,13 +839,21 @@ function P.update(real_dt)
                     end
                 end
             end
-            if not g.shown then
-                XPLMSetWindowIsVisible(g.win, true)
-                g.shown = true
+            if mx and not over and mx >= l and mx <= r and my >= b and my <= t then
+                -- off the outline: step aside for the window or host below
+                hide(g)
+            else
+                if not g.shown then
+                    XPLMSetWindowIsVisible(g.win, true)
+                    g.shown = true
+                end
+                -- onto the outline: in front of a neighbour's overlapping window
+                if over and not g.over and XPLMBringWindowToFront then XPLMBringWindowToFront(g.win) end
             end
         else
             hide(g)
         end
+        if not active then g.over = over end
     end
 end
 
