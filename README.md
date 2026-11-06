@@ -4,7 +4,7 @@ The Mid-Continent MD302 Standby Attitude Module, rebuilt for X-Plane 12.
 
 Two tiny screens, one knob, and a battery that keeps going when the rest of the panel goes dark.
 
-![The MD302 pop-up: attitude on the left, airspeed and altitude on the right](docs/gallery/md302.png)
+<p align="center"><img src="docs/gallery/md302.png" width="560" alt="The MD302 pop-up: attitude on the left, airspeed and altitude on the right"></p>
 
 ## A quick look
 
@@ -100,8 +100,8 @@ Version: 2026-11-03 (manual 9017782 rev Q; the S/W VERSION the unit shows is "X-
 
 ## Credits
 
-MD302 for X-Plane by Tiezheng Eric Xu for Laminar Research. The text is drawn from PNG glyph atlases
-(`Textures/Font/`, no font files are shipped) cut from the 2024 MD302 art; characters that art did not contain
+MD302 for X-Plane, by Tiezheng Eric Xu for Laminar Research. The text is drawn from PNG glyph atlases
+(`Textures/Font/`, no font files are shipped) cut from the Eric's pre-2024 MD302 art; characters that art did not contain
 (Z J Q - _ : , + < > ° = % ? #) were drawn to match. The lettering is set about one LCD pixel a letter tighter than
 that art, as the unit's. Behaviour per Mid-Continent's manual 9017782 rev Q (and rev B); the manuals are not
 included.
