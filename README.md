@@ -14,6 +14,24 @@ what rev Q added is drawn from its screen dumps.
 
 Version: 2026-11-03 (manual 9017782 rev Q; the S/W VERSION the unit shows is "X-PLANE 2.0.0").
 
+## Manual
+
+Start here: **[MD302_Manual.pdf](MD302_Manual.pdf)** (64 pages).
+
+Just like the real unit, the MD302 is a standby instrument with two small screens and a single push/turn knob.
+
+Inside:
+
+- The pop-up, the knob and both displays
+- Baro, units and brightness
+- The Options Menu
+- Battery operation, failures and messages
+- Configuration Mode, installation and settings (for aircraft authors)
+- Tutorial: losing aircraft power, and real failures
+- Appendix A: where it differs from the real unit
+
+The rest of this README is the short technical reference.
+
 ## Requirements
 
 - X-Plane 12.4.4 with Panel Graphics (developed and tested on 12.4.4-b5, Windows only so far: Mac and Linux
